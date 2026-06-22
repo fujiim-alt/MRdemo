@@ -7,8 +7,9 @@ let hitTestSource = null;
 let hitTestSourceRequested = false;
 
 let currentHitMatrix = null;
-
 let arStarted = false;
+
+let reticle;
 
 init();
 
@@ -35,7 +36,14 @@ function init() {
 
     scene.add(new THREE.HemisphereLight(0xffffff, 0xbbbbff, 1));
 
-    // ★ 画面タップでAR開始
+    // レティクル（地面認識可視化）
+    const geo = new THREE.RingGeometry(0.2, 0.25, 32);
+    const mat = new THREE.MeshBasicMaterial({ color: 0xffffff });
+    reticle = new THREE.Mesh(geo, mat);
+    reticle.rotation.x = -Math.PI / 2;
+    reticle.visible = false;
+    scene.add(reticle);
+
     window.addEventListener("click", startAROnce);
 
     renderer.setAnimationLoop(render);
@@ -44,7 +52,6 @@ function init() {
 function startAROnce() {
 
     if (arStarted) return;
-
     arStarted = true;
 
     document.getElementById("hint").style.display = "none";
@@ -54,9 +61,17 @@ function startAROnce() {
             requiredFeatures: ["hit-test"]
         })
     );
+
+    // ARセッション開始後に入力登録
+    renderer.xr.addEventListener("sessionstart", () => {
+
+        const session = renderer.xr.getSession();
+
+        session.addEventListener("select", onSelect);
+    });
 }
 
-function placeCylinder() {
+function onSelect() {
 
     if (!currentHitMatrix) return;
 
@@ -108,12 +123,20 @@ function render(_, frame) {
                 currentHitMatrix = new THREE.Matrix4().fromArray(
                     pose.transform.matrix
                 );
+
+                reticle.visible = true;
+                reticle.matrix.fromArray(pose.transform.matrix);
+                reticle.matrix.decompose(
+                    reticle.position,
+                    reticle.quaternion,
+                    reticle.scale
+                );
+
+            } else {
+                reticle.visible = false;
             }
         }
     }
 
     renderer.render(scene, camera);
 }
-
-// ★ AR中のタップで配置
-window.addEventListener("click", placeCylinder);
