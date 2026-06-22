@@ -1,125 +1,24 @@
-<!DOCTYPE html>
-<html lang="ja">
+<!doctype html>
+<html>
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>AR test</title>
-
-<style>
-html,body{
-    margin:0;
-    overflow:hidden;
-    width:100%;
-    height:100%;
-}
-button{
-    position:absolute;
-    top:20px;
-    left:20px;
-    z-index:10;
-    padding:10px;
-}
-</style>
+  <meta charset="utf-8">
+  <title>WebXR test</title>
 </head>
-
 <body>
+<button id="enter">Enter XR</button>
 
-<button id="start">AR開始</button>
+<script>
+const btn = document.getElementById("enter");
 
-<script type="module">
+btn.onclick = async () => {
+  if (!navigator.xr) {
+    alert("WebXR非対応です");
+    return;
+  }
 
-import * as THREE from "https://unpkg.com/three@0.166.1/build/three.module.js";
-import { ARButton } from "https://unpkg.com/three@0.166.1/examples/jsm/webxr/ARButton.js";
-
-let scene, camera, renderer;
-let hitTestSource = null;
-let hitTestSourceRequested = false;
-
-let placed = false;
-
-init();
-
-function init(){
-
-    scene = new THREE.Scene();
-
-    camera = new THREE.PerspectiveCamera(
-        70,
-        innerWidth/innerHeight,
-        0.01,
-        1000
-    );
-
-    renderer = new THREE.WebGLRenderer({ alpha:true });
-    renderer.setSize(innerWidth, innerHeight);
-    renderer.xr.enabled = true;
-    document.body.appendChild(renderer.domElement);
-
-    scene.add(new THREE.HemisphereLight(0xffffff,0x444444,1));
-
-    document.getElementById("start").onclick = () => {
-
-        document.getElementById("start").style.display = "none";
-
-        document.body.appendChild(
-            ARButton.createButton(renderer, {
-                requiredFeatures:["hit-test"]
-            })
-        );
-    };
-
-    renderer.setAnimationLoop(render);
-}
-
-function render(_, frame){
-
-    if(frame){
-
-        const session = renderer.xr.getSession();
-        const refSpace = renderer.xr.getReferenceSpace();
-
-        if(!hitTestSourceRequested){
-
-            session.requestReferenceSpace("viewer").then(space=>{
-
-                session.requestHitTestSource({ space }).then(source=>{
-                    hitTestSource = source;
-                });
-
-            });
-
-            hitTestSourceRequested = true;
-        }
-
-        if(hitTestSource){
-
-            const hits = frame.getHitTestResults(hitTestSource);
-
-            if(hits.length > 0){
-
-                const pose = hits[0].getPose(refSpace);
-
-                if(!placed){
-
-                    const geo = new THREE.CylinderGeometry(0.15,0.15,0.3,32);
-                    const mat = new THREE.MeshStandardMaterial({ color:0x00ff00 });
-                    const mesh = new THREE.Mesh(geo,mat);
-
-                    mesh.position.setFromMatrixPosition(
-                        new THREE.Matrix4().fromArray(pose.transform.matrix)
-                    );
-
-                    scene.add(mesh);
-                    placed = true;
-                }
-            }
-        }
-    }
-
-    renderer.render(scene,camera);
-}
-
+  const supported = await navigator.xr.isSessionSupported("immersive-ar");
+  alert("AR対応: " + supported);
+};
 </script>
-
 </body>
 </html>
