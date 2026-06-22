@@ -75,7 +75,7 @@ function onSelect() {
 
     if (!currentHitMatrix) return;
 
-    const geo = new THREE.CylinderGeometry(5, 5, 20, 32);
+    const geo = new THREE.CylinderGeometry(0.15, 0.15, 0.3, 32);
 
     const mat = new THREE.MeshStandardMaterial({
         color: 0x00ff00,
