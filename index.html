@@ -2,11 +2,11 @@
 <html lang="ja">
 <head>
   <meta charset="utf-8" />
-  <title>WebXR AR minimal</title>
+  <title>WebXR AR fixed</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <style>
     body { margin: 0; overflow: hidden; }
-    #btn {
+    button {
       position: absolute;
       top: 10px;
       left: 10px;
@@ -21,7 +21,6 @@
 
 <script type="module">
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js";
-import { ARButton } from "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/webxr/ARButton.js";
 
 let scene, camera, renderer;
 
@@ -39,16 +38,16 @@ function init() {
     20
   );
 
-  renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+  renderer = new THREE.WebGLRenderer({
+    antialias: true,
+    alpha: true
+  });
+
   renderer.setSize(window.innerWidth, window.innerHeight);
   renderer.xr.enabled = true;
   document.body.appendChild(renderer.domElement);
 
-  // 軽い光（可視確認用）
-  const light = new THREE.HemisphereLight(0xffffff, 0x444444, 1);
-  scene.add(light);
-
-  // テスト用オブジェクト（起動確認）
+  // ★重要：カメラが見える前提のテスト物体
   const box = new THREE.Mesh(
     new THREE.BoxGeometry(0.2, 0.2, 0.2),
     new THREE.MeshNormalMaterial()
@@ -57,10 +56,19 @@ function init() {
   scene.add(box);
 
   document.getElementById("btn").addEventListener("click", async () => {
+
     try {
 
       if (!navigator.xr) {
-        alert("WebXR非対応です");
+        alert("WebXR非対応");
+        return;
+      }
+
+      const supported = await navigator.xr.isSessionSupported("immersive-ar");
+      console.log("supported:", supported);
+
+      if (!supported) {
+        alert("AR非対応環境");
         return;
       }
 
@@ -68,21 +76,21 @@ function init() {
 
       renderer.xr.setSession(session);
 
-      console.log("AR session started");
+      console.log("XR session started");
 
     } catch (e) {
       console.error(e);
-      alert("AR起動失敗: " + e.message);
+      alert("失敗: " + e.message);
     }
+
   });
 
-  window.addEventListener("resize", onResize);
-}
+  window.addEventListener("resize", () => {
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+  });
 
-function onResize() {
-  camera.aspect = window.innerWidth / window.innerHeight;
-  camera.updateProjectionMatrix();
-  renderer.setSize(window.innerWidth, window.innerHeight);
 }
 
 function animate() {
@@ -92,6 +100,7 @@ function animate() {
 function render() {
   renderer.render(scene, camera);
 }
+
 </script>
 
 </body>
