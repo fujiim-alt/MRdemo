@@ -2,24 +2,28 @@
 <html lang="ja">
 <head>
   <meta charset="utf-8" />
-  <title>WebXR AR test</title>
+  <title>WebXR AR minimal</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <style>
     body { margin: 0; overflow: hidden; }
-    button { position: absolute; z-index: 10; top: 10px; left: 10px; }
+    #btn {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      z-index: 10;
+      padding: 10px;
+    }
   </style>
 </head>
 <body>
 
-<button id="enter-ar">AR開始</button>
+<button id="btn">AR開始</button>
 
 <script type="module">
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js";
 import { ARButton } from "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/webxr/ARButton.js";
 
-let camera, scene, renderer;
-let reticle;
-let controller;
+let scene, camera, renderer;
 
 init();
 animate();
@@ -28,53 +32,54 @@ function init() {
 
   scene = new THREE.Scene();
 
-  camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.01, 20);
+  camera = new THREE.PerspectiveCamera(
+    70,
+    window.innerWidth / window.innerHeight,
+    0.01,
+    20
+  );
 
   renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
   renderer.setSize(window.innerWidth, window.innerHeight);
   renderer.xr.enabled = true;
   document.body.appendChild(renderer.domElement);
 
-  // 光
-  const light = new THREE.HemisphereLight(0xffffff, 0xbbbbff, 1);
+  // 軽い光（可視確認用）
+  const light = new THREE.HemisphereLight(0xffffff, 0x444444, 1);
   scene.add(light);
 
-  // レティクル（地面検出位置）
-  const geometry = new THREE.RingGeometry(0.1, 0.12, 32).rotateX(-Math.PI / 2);
-  const material = new THREE.MeshBasicMaterial({ color: 0x00ff00 });
-  reticle = new THREE.Mesh(geometry, material);
-  reticle.matrixAutoUpdate = false;
-  reticle.visible = false;
-  scene.add(reticle);
+  // テスト用オブジェクト（起動確認）
+  const box = new THREE.Mesh(
+    new THREE.BoxGeometry(0.2, 0.2, 0.2),
+    new THREE.MeshNormalMaterial()
+  );
+  box.position.set(0, 0, -0.5);
+  scene.add(box);
 
-  // コントローラ（画面タップ）
-  controller = renderer.xr.getController(0);
-  controller.addEventListener("select", onSelect);
-  scene.add(controller);
+  document.getElementById("btn").addEventListener("click", async () => {
+    try {
 
-  // ARボタン
-  document.getElementById("enter-ar").addEventListener("click", async () => {
-    const session = await navigator.xr.requestSession("immersive-ar", {
-      requiredFeatures: ["hit-test"]
-    });
-    renderer.xr.setSession(session);
+      if (!navigator.xr) {
+        alert("WebXR非対応です");
+        return;
+      }
+
+      const session = await navigator.xr.requestSession("immersive-ar");
+
+      renderer.xr.setSession(session);
+
+      console.log("AR session started");
+
+    } catch (e) {
+      console.error(e);
+      alert("AR起動失敗: " + e.message);
+    }
   });
 
-  window.addEventListener("resize", onWindowResize);
+  window.addEventListener("resize", onResize);
 }
 
-function onSelect() {
-  if (reticle.visible === false) return;
-
-  const geometry = new THREE.BoxGeometry(0.1, 0.1, 0.1);
-  const material = new THREE.MeshNormalMaterial();
-  const mesh = new THREE.Mesh(geometry, material);
-
-  mesh.position.setFromMatrixPosition(reticle.matrix);
-  scene.add(mesh);
-}
-
-function onWindowResize() {
+function onResize() {
   camera.aspect = window.innerWidth / window.innerHeight;
   camera.updateProjectionMatrix();
   renderer.setSize(window.innerWidth, window.innerHeight);
