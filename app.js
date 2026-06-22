@@ -6,10 +6,7 @@ let scene, camera, renderer;
 let hitTestSource = null;
 let hitTestSourceRequested = false;
 
-let currentHitMatrix = null;
-let arStarted = false;
-
-let reticle;
+let cylinderPlaced = false;
 
 init();
 
@@ -36,57 +33,28 @@ function init() {
 
     scene.add(new THREE.HemisphereLight(0xffffff, 0xbbbbff, 1));
 
-    // レティクル（地面認識可視化）
-    const geo = new THREE.RingGeometry(0.2, 0.25, 32);
-    const mat = new THREE.MeshBasicMaterial({ color: 0xffffff });
-    reticle = new THREE.Mesh(geo, mat);
-    reticle.rotation.x = -Math.PI / 2;
-    reticle.visible = false;
-    scene.add(reticle);
-
-    window.addEventListener("click", startAROnce);
-
-    renderer.setAnimationLoop(render);
-}
-
-function startAROnce() {
-
-    if (arStarted) return;
-    arStarted = true;
-
-    document.getElementById("hint").style.display = "none";
-
     document.body.appendChild(
         ARButton.createButton(renderer, {
             requiredFeatures: ["hit-test"]
         })
     );
 
-    // ARセッション開始後に入力登録
-    renderer.xr.addEventListener("sessionstart", () => {
-
-        const session = renderer.xr.getSession();
-
-        session.addEventListener("select", onSelect);
-    });
+    renderer.setAnimationLoop(render);
 }
 
-function onSelect() {
-
-    if (!currentHitMatrix) return;
+function placeOnce(matrix) {
 
     const geo = new THREE.CylinderGeometry(0.15, 0.15, 0.3, 32);
 
     const mat = new THREE.MeshStandardMaterial({
         color: 0x00ff00,
         transparent: true,
-        opacity: 0.4
+        opacity: 0.7
     });
 
     const cylinder = new THREE.Mesh(geo, mat);
 
-    cylinder.position.setFromMatrixPosition(currentHitMatrix);
-    cylinder.position.y += 10;
+    cylinder.position.setFromMatrixPosition(matrix);
 
     scene.add(cylinder);
 }
@@ -120,20 +88,15 @@ function render(_, frame) {
 
                 const pose = hits[0].getPose(refSpace);
 
-                currentHitMatrix = new THREE.Matrix4().fromArray(
-                    pose.transform.matrix
-                );
+                if (!cylinderPlaced) {
+                    placeOnce(
+                        new THREE.Matrix4().fromArray(
+                            pose.transform.matrix
+                        )
+                    );
 
-                reticle.visible = true;
-                reticle.matrix.fromArray(pose.transform.matrix);
-                reticle.matrix.decompose(
-                    reticle.position,
-                    reticle.quaternion,
-                    reticle.scale
-                );
-
-            } else {
-                reticle.visible = false;
+                    cylinderPlaced = true;
+                }
             }
         }
     }
