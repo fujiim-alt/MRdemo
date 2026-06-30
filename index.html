@@ -2,59 +2,91 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
-  <title>WebXR Check</title>
+  <title>WebXR AR Fix</title>
   <style>
-    body {
-      font-family: sans-serif;
-      padding: 20px;
-    }
-    #result {
-      margin-top: 20px;
-      white-space: pre-wrap;
-      background: #f0f0f0;
-      padding: 10px;
-    }
+    body { margin: 0; overflow: hidden; }
   </style>
 </head>
 <body>
 
-<h2>WebXR AR対応チェック</h2>
+<script type="module">
+import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js";
+import { ARButton } from "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/webxr/ARButton.js";
 
-<button id="check">チェック開始</button>
+let scene, camera, renderer;
+let reticle;
+let hitTestSource = null;
+let referenceSpace = null;
 
-<div id="result">未実行</div>
+init();
 
-<script>
-async function checkXR() {
-  const result = document.getElementById("result");
+function init() {
+  scene = new THREE.Scene();
+  camera = new THREE.PerspectiveCamera();
 
-  if (!navigator.xr) {
-    result.textContent = "WebXR自体が未対応です";
-    return;
-  }
+  renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  renderer.xr.enabled = true;
+  document.body.appendChild(renderer.domElement);
 
-  let supported = false;
+  document.body.appendChild(
+    ARButton.createButton(renderer, {
+      requiredFeatures: ["hit-test"]
+    })
+  );
 
-  try {
-    supported = await navigator.xr.isSessionSupported("immersive-ar");
-  } catch (e) {
-    result.textContent = "エラー: " + e;
-    return;
-  }
+  scene.add(new THREE.HemisphereLight(0xffffff, 0x444444));
 
-  let output = "";
-  output += "immersive-ar対応: " + supported + "\n";
+  reticle = new THREE.Mesh(
+    new THREE.RingGeometry(0.08, 0.1, 32),
+    new THREE.MeshBasicMaterial({ color: 0x00ff00 })
+  );
+  reticle.rotation.x = -Math.PI / 2;
+  reticle.visible = false;
+  scene.add(reticle);
 
-  if (supported) {
-    output += "→ ARセッション開始可能性あり\n";
-  } else {
-    output += "→ この端末ではWebXR ARは不可\n";
-  }
+  renderer.domElement.addEventListener("click", () => {
+    if (!reticle.visible) return;
 
-  result.textContent = output;
+    const box = new THREE.Mesh(
+      new THREE.BoxGeometry(0.1, 0.1, 0.1),
+      new THREE.MeshStandardMaterial({ color: ff0000 })
+    );
+
+    box.position.setFromMatrixPosition(reticle.matrix);
+    scene.add(box);
+  });
+
+  renderer.xr.addEventListener("sessionstart", async () => {
+    const session = renderer.xr.getSession();
+
+    referenceSpace = await session.requestReferenceSpace("viewer");
+
+    // 少し遅延させる（重要）
+    setTimeout(async () => {
+      hitTestSource = await session.requestHitTestSource({
+        space: referenceSpace
+      });
+    }, 500);
+  });
+
+  renderer.setAnimationLoop((_, frame) => {
+    if (frame && hitTestSource) {
+      const refSpace = renderer.xr.getReferenceSpace();
+      const hits = frame.getHitTestResults(hitTestSource);
+
+      if (hits.length > 0) {
+        const pose = hits[0].getPose(refSpace);
+        reticle.visible = true;
+        reticle.matrix.fromArray(pose.transform.matrix);
+      } else {
+        reticle.visible = false;
+      }
+    }
+
+    renderer.render(scene, camera);
+  });
 }
-
-document.getElementById("check").addEventListener("click", checkXR);
 </script>
 
 </body>
