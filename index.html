@@ -1,107 +1,183 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="ja">
 <head>
-  <meta charset="utf-8" />
-  <title>WebXR AR fixed</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <style>
-    body { margin: 0; overflow: hidden; }
-    button {
-      position: absolute;
-      top: 10px;
-      left: 10px;
-      z-index: 10;
-      padding: 10px;
-    }
-  </style>
-</head>
-<body>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>WebXR AR Demo</title>
 
-<button id="btn">AR開始</button>
+<style>
+body{
+    margin:0;
+    overflow:hidden;
+    background:#000;
+    font-family:sans-serif;
+}
+
+#startButton{
+    position:absolute;
+    left:50%;
+    bottom:30px;
+    transform:translateX(-50%);
+    padding:15px 30px;
+    font-size:18px;
+    z-index:10;
+}
+</style>
 
 <script type="module">
-import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js";
 
-let scene, camera, renderer;
+import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.165/build/three.module.js";
+import { ARButton } from "https://cdn.jsdelivr.net/npm/three@0.165/examples/jsm/webxr/ARButton.js";
+
+let camera, scene, renderer;
+let controller;
+let reticle;
 
 init();
-animate();
 
-function init() {
+function init(){
 
-  scene = new THREE.Scene();
+    scene = new THREE.Scene();
 
-  camera = new THREE.PerspectiveCamera(
-    70,
-    window.innerWidth / window.innerHeight,
-    0.01,
-    20
-  );
+    camera = new THREE.PerspectiveCamera(
+        70,
+        window.innerWidth/window.innerHeight,
+        0.01,
+        20
+    );
 
-  renderer = new THREE.WebGLRenderer({
-    antialias: true,
-    alpha: true
-  });
+    renderer = new THREE.WebGLRenderer({
+        antialias:true,
+        alpha:true
+    });
 
-  renderer.setSize(window.innerWidth, window.innerHeight);
-  renderer.xr.enabled = true;
-  document.body.appendChild(renderer.domElement);
+    renderer.setPixelRatio(window.devicePixelRatio);
+    renderer.setSize(window.innerWidth,window.innerHeight);
+    renderer.xr.enabled=true;
 
-  // ★重要：カメラが見える前提のテスト物体
-  const box = new THREE.Mesh(
-    new THREE.BoxGeometry(0.2, 0.2, 0.2),
-    new THREE.MeshNormalMaterial()
-  );
-  box.position.set(0, 0, -0.5);
-  scene.add(box);
+    document.body.appendChild(renderer.domElement);
 
-  document.getElementById("btn").addEventListener("click", async () => {
+    const light=new THREE.HemisphereLight(0xffffff,0xbbbbff,3);
+    scene.add(light);
 
-    try {
+    reticle=new THREE.Mesh(
+        new THREE.RingGeometry(0.08,0.1,32).rotateX(-Math.PI/2),
+        new THREE.MeshBasicMaterial()
+    );
 
-      if (!navigator.xr) {
-        alert("WebXR非対応");
-        return;
-      }
+    reticle.matrixAutoUpdate=false;
+    reticle.visible=false;
+    scene.add(reticle);
 
-      const supported = await navigator.xr.isSessionSupported("immersive-ar");
-      console.log("supported:", supported);
+    controller=renderer.xr.getController(0);
 
-      if (!supported) {
-        alert("AR非対応環境");
-        return;
-      }
+    controller.addEventListener("select",placeCube);
 
-      const session = await navigator.xr.requestSession("immersive-ar");
+    scene.add(controller);
 
-      renderer.xr.setSession(session);
+    const button=ARButton.createButton(renderer,{
+        requiredFeatures:["hit-test"]
+    });
 
-      console.log("XR session started");
+    button.id="startButton";
+    button.textContent="AR開始";
 
-    } catch (e) {
-      console.error(e);
-      alert("失敗: " + e.message);
+    document.body.appendChild(button);
+
+    renderer.setAnimationLoop(render);
+
+}
+
+let hitTestSource=null;
+let hitTestRequested=false;
+
+function render(timestamp,frame){
+
+    if(frame){
+
+        const referenceSpace=renderer.xr.getReferenceSpace();
+        const session=renderer.xr.getSession();
+
+        if(!hitTestRequested){
+
+            session.requestReferenceSpace("viewer").then((viewerSpace)=>{
+
+                session.requestHitTestSource({
+                    space:viewerSpace
+                }).then((source)=>{
+                    hitTestSource=source;
+                });
+
+            });
+
+            session.addEventListener("end",()=>{
+
+                hitTestRequested=false;
+                hitTestSource=null;
+
+            });
+
+            hitTestRequested=true;
+        }
+
+        if(hitTestSource){
+
+            const hits=frame.getHitTestResults(hitTestSource);
+
+            if(hits.length){
+
+                const hit=hits[0];
+                const pose=hit.getPose(referenceSpace);
+
+                reticle.visible=true;
+                reticle.matrix.fromArray(pose.transform.matrix);
+
+            }else{
+
+                reticle.visible=false;
+
+            }
+
+        }
+
     }
 
-  });
+    renderer.render(scene,camera);
 
-  window.addEventListener("resize", () => {
-    camera.aspect = window.innerWidth / window.innerHeight;
+}
+
+function placeCube(){
+
+    if(!reticle.visible) return;
+
+    const cube=new THREE.Mesh(
+
+        new THREE.BoxGeometry(0.1,0.1,0.1),
+
+        new THREE.MeshStandardMaterial({
+            color:0xff0000
+        })
+
+    );
+
+    cube.position.setFromMatrixPosition(reticle.matrix);
+    cube.quaternion.setFromRotationMatrix(reticle.matrix);
+
+    scene.add(cube);
+
+}
+
+window.addEventListener("resize",()=>{
+
+    camera.aspect=window.innerWidth/window.innerHeight;
     camera.updateProjectionMatrix();
-    renderer.setSize(window.innerWidth, window.innerHeight);
-  });
+    renderer.setSize(window.innerWidth,window.innerHeight);
 
-}
-
-function animate() {
-  renderer.setAnimationLoop(render);
-}
-
-function render() {
-  renderer.render(scene, camera);
-}
+});
 
 </script>
 
+</head>
+<body>
 </body>
 </html>
