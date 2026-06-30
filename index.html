@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>WebXR AR Stable</title>
+  <title>WebXR AR Debug Full</title>
 
   <style>
     body {
@@ -35,14 +35,22 @@
       renderer.xr.enabled = true;
       document.body.appendChild(renderer.domElement);
 
-      // ★ hit-testを必須にしない（重要）
       document.body.appendChild(
         ARButton.createButton(renderer, {
           optionalFeatures: ["hit-test"]
         })
       );
 
-      // ★ reticle（床検出マーカー）
+      // テスト用：ARが動いてるか確認（カメラ前に必ず出る）
+      const testBox = new THREE.Mesh(
+        new THREE.BoxGeometry(0.1, 0.1, 0.1),
+        new THREE.MeshNormalMaterial()
+      );
+      testBox.position.set(0, 0, -0.5);
+      camera.add(testBox);
+      scene.add(camera);
+
+      // reticle（床検出）
       const geo = new THREE.RingGeometry(0.07, 0.1, 32);
       const mat = new THREE.MeshBasicMaterial({ color: 0x00ff00 });
       reticle = new THREE.Mesh(geo, mat);
@@ -51,9 +59,14 @@
       reticle.visible = false;
       scene.add(reticle);
 
-      // ★ タップで箱配置
+      // タップで箱配置
       renderer.domElement.addEventListener("click", () => {
-        if (!reticle.visible) return;
+        console.log("tap");
+
+        if (!reticle.visible) {
+          console.log("reticle not visible");
+          return;
+        }
 
         const box = new THREE.Mesh(
           new THREE.BoxGeometry(0.1, 0.1, 0.1),
@@ -64,32 +77,32 @@
         scene.add(box);
       });
 
-      // ★ AR開始時
+      // AR開始
       renderer.xr.addEventListener("sessionstart", async () => {
         const session = renderer.xr.getSession();
 
-        console.log("AR session start");
+        console.log("=== AR START ===");
 
         try {
           referenceSpace = await session.requestReferenceSpace("local");
+          console.log("local space OK");
+
           const viewerSpace = await session.requestReferenceSpace("viewer");
+          console.log("viewer space OK");
 
           hitTestSource = await session.requestHitTestSource({
             space: viewerSpace
           });
 
-          console.log("referenceSpace:", referenceSpace);
-          console.log("viewerSpace:", viewerSpace);
           console.log("hitTestSource:", hitTestSource);
+
         } catch (e) {
-          console.log("hit-test error:", e);
+          console.log("ERROR in hit-test setup:", e);
         }
       });
 
-      // ★ AR終了時
       renderer.xr.addEventListener("sessionend", () => {
-        console.log("AR session end");
-
+        console.log("=== AR END ===");
         hitTestSource = null;
         referenceSpace = null;
       });
@@ -100,16 +113,22 @@
     }
 
     function render(time, frame) {
-      if (frame && hitTestSource && referenceSpace) {
-        const results = frame.getHitTestResults(hitTestSource);
+      if (frame) {
+        if (!hitTestSource) {
+          console.log("hitTestSource is null");
+        }
 
-        if (results.length > 0) {
-          const pose = results[0].getPose(referenceSpace);
+        if (hitTestSource && referenceSpace) {
+          const results = frame.getHitTestResults(hitTestSource);
 
-          reticle.visible = true;
-          reticle.matrix.fromArray(pose.transform.matrix);
-        } else {
-          reticle.visible = false;
+          if (results.length > 0) {
+            const pose = results[0].getPose(referenceSpace);
+
+            reticle.visible = true;
+            reticle.matrix.fromArray(pose.transform.matrix);
+          } else {
+            reticle.visible = false;
+          }
         }
       }
 
