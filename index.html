@@ -2,120 +2,59 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
-  <title>WebXR AR Test</title>
+  <title>WebXR Check</title>
   <style>
     body {
-      margin: 0;
-      overflow: hidden;
+      font-family: sans-serif;
+      padding: 20px;
     }
-
-    #info {
-      position: absolute;
-      top: 10px;
-      left: 10px;
-      z-index: 10;
-      background: rgba(0,0,0,0.5);
-      color: white;
-      padding: 8px;
-      font-size: 12px;
+    #result {
+      margin-top: 20px;
+      white-space: pre-wrap;
+      background: #f0f0f0;
+      padding: 10px;
     }
   </style>
 </head>
 <body>
 
-<div id="info">ARボタンから開始</div>
+<h2>WebXR AR対応チェック</h2>
 
-<script type="module">
-import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js";
-import { ARButton } from "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/webxr/ARButton.js";
+<button id="check">チェック開始</button>
 
-let scene, camera, renderer;
-let reticle;
-let hitTestSource = null;
-let referenceSpace = null;
+<div id="result">未実行</div>
 
-init();
-animate();
+<script>
+async function checkXR() {
+  const result = document.getElementById("result");
 
-function init() {
-  scene = new THREE.Scene();
+  if (!navigator.xr) {
+    result.textContent = "WebXR自体が未対応です";
+    return;
+  }
 
-  camera = new THREE.PerspectiveCamera();
+  let supported = false;
 
-  renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-  renderer.setSize(window.innerWidth, window.innerHeight);
-  renderer.xr.enabled = true;
-  document.body.appendChild(renderer.domElement);
+  try {
+    supported = await navigator.xr.isSessionSupported("immersive-ar");
+  } catch (e) {
+    result.textContent = "エラー: " + e;
+    return;
+  }
 
-  document.body.appendChild(
-    ARButton.createButton(renderer, {
-      requiredFeatures: ["hit-test"]
-    })
-  );
+  let output = "";
+  output += "immersive-ar対応: " + supported + "\n";
 
-  // 光
-  const light = new THREE.HemisphereLight(0xffffff, 0xbbbbff, 1);
-  scene.add(light);
+  if (supported) {
+    output += "→ ARセッション開始可能性あり\n";
+  } else {
+    output += "→ この端末ではWebXR ARは不可\n";
+  }
 
-  // レティクル
-  const geometry = new THREE.RingGeometry(0.08, 0.1, 32);
-  const material = new THREE.MeshBasicMaterial({ color: 0x00ff00 });
-  reticle = new THREE.Mesh(geometry, material);
-  reticle.rotation.x = -Math.PI / 2;
-  reticle.visible = false;
-  scene.add(reticle);
-
-  // タップで配置
-  renderer.domElement.addEventListener("click", () => {
-    if (!reticle.visible) return;
-
-    const box = new THREE.Mesh(
-      new THREE.BoxGeometry(0.1, 0.1, 0.1),
-      new THREE.MeshStandardMaterial({ color: ff0000 })
-    );
-
-    box.position.setFromMatrixPosition(reticle.matrix);
-    scene.add(box);
-  });
-
-  // AR開始
-  renderer.xr.addEventListener("sessionstart", async () => {
-    const session = renderer.xr.getSession();
-
-    referenceSpace = await session.requestReferenceSpace("viewer");
-    hitTestSource = await session.requestHitTestSource({
-      space: referenceSpace
-    });
-  });
-
-  // AR終了時リセット
-  renderer.xr.addEventListener("sessionend", () => {
-    hitTestSource = null;
-    referenceSpace = null;
-  });
+  result.textContent = output;
 }
 
-function animate() {
-  renderer.setAnimationLoop((timestamp, frame) => {
-
-    if (frame && hitTestSource) {
-      const refSpace = renderer.xr.getReferenceSpace();
-      const hitTestResults = frame.getHitTestResults(hitTestSource);
-
-      if (hitTestResults.length > 0) {
-        const hit = hitTestResults[0];
-        const pose = hit.getPose(refSpace);
-
-        reticle.visible = true;
-        reticle.matrix.fromArray(pose.transform.matrix);
-      } else {
-        reticle.visible = false;
-      }
-    }
-
-    renderer.render(scene, camera);
-  });
-}
+document.getElementById("check").addEventListener("click", checkXR);
 </script>
 
 </body>
