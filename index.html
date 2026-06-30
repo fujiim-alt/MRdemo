@@ -71,7 +71,7 @@ function init() {
     if (reticle.visible) {
       const box = new THREE.Mesh(
         new THREE.BoxGeometry(0.1, 0.1, 0.1),
-        new THREE.MeshStandardMaterial({ color: 0x1565c0 })
+        new THREE.MeshStandardMaterial({ color: ff0000 })
       );
       box.position.setFromMatrixPosition(reticle.matrix);
       scene.add(box);
