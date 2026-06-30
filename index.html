@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>WebXR AR Debug Full</title>
+  <title>XR Frame Test</title>
 
   <style>
     body {
@@ -17,17 +17,12 @@
     import { ARButton } from "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/webxr/ARButton.js";
 
     let scene, camera, renderer;
-    let reticle;
-
-    let hitTestSource = null;
-    let referenceSpace = null;
 
     init();
     animate();
 
     function init() {
       scene = new THREE.Scene();
-
       camera = new THREE.PerspectiveCamera();
 
       renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
@@ -37,102 +32,39 @@
 
       document.body.appendChild(
         ARButton.createButton(renderer, {
-          optionalFeatures: ["hit-test"]
+          optionalFeatures: ["local-floor"]
         })
       );
 
-      // テスト用：ARが動いてるか確認（カメラ前に必ず出る）
-      const testBox = new THREE.Mesh(
+      // ★ フレーム確認用（絶対見える）
+      const box = new THREE.Mesh(
         new THREE.BoxGeometry(0.1, 0.1, 0.1),
         new THREE.MeshNormalMaterial()
       );
-      testBox.position.set(0, 0, -0.5);
-      camera.add(testBox);
+      box.position.set(0, 0, -0.5);
+      camera.add(box);
       scene.add(camera);
 
-      // reticle（床検出）
-      const geo = new THREE.RingGeometry(0.07, 0.1, 32);
-      const mat = new THREE.MeshBasicMaterial({ color: 0x00ff00 });
-      reticle = new THREE.Mesh(geo, mat);
-      reticle.rotation.x = -Math.PI / 2;
-      reticle.matrixAutoUpdate = false;
-      reticle.visible = false;
-      scene.add(reticle);
-
-      // タップで箱配置
-      renderer.domElement.addEventListener("click", () => {
-        console.log("tap");
-
-        if (!reticle.visible) {
-          console.log("reticle not visible");
-          return;
-        }
-
-        const box = new THREE.Mesh(
-          new THREE.BoxGeometry(0.1, 0.1, 0.1),
-          new THREE.MeshNormalMaterial()
-        );
-
-        box.position.setFromMatrixPosition(reticle.matrix);
-        scene.add(box);
-      });
-
-      // AR開始
-      renderer.xr.addEventListener("sessionstart", async () => {
-        const session = renderer.xr.getSession();
-
-        console.log("=== AR START ===");
-
-        try {
-          referenceSpace = await session.requestReferenceSpace("local");
-          console.log("local space OK");
-
-          const viewerSpace = await session.requestReferenceSpace("viewer");
-          console.log("viewer space OK");
-
-          hitTestSource = await session.requestHitTestSource({
-            space: viewerSpace
-          });
-
-          console.log("hitTestSource:", hitTestSource);
-
-        } catch (e) {
-          console.log("ERROR in hit-test setup:", e);
-        }
+      renderer.xr.addEventListener("sessionstart", () => {
+        console.log("SESSION START");
+        console.log(renderer.xr.getSession());
       });
 
       renderer.xr.addEventListener("sessionend", () => {
-        console.log("=== AR END ===");
-        hitTestSource = null;
-        referenceSpace = null;
+        console.log("SESSION END");
       });
     }
 
     function animate() {
-      renderer.setAnimationLoop(render);
-    }
-
-    function render(time, frame) {
-      if (frame) {
-        if (!hitTestSource) {
-          console.log("hitTestSource is null");
+      renderer.setAnimationLoop((time, frame) => {
+        if (frame) {
+          console.log("FRAME OK");
+        } else {
+          console.log("NO FRAME");
         }
 
-        if (hitTestSource && referenceSpace) {
-          const results = frame.getHitTestResults(hitTestSource);
-
-          if (results.length > 0) {
-            const pose = results[0].getPose(referenceSpace);
-
-            reticle.visible = true;
-            reticle.matrix.fromArray(pose.transform.matrix);
-          } else {
-            reticle.visible = false;
-          }
-        }
-      }
-
-      renderer.render(scene, camera);
+        renderer.render(scene, camera);
+      });
     }
   </script>
 </head>
